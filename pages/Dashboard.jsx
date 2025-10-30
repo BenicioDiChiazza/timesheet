@@ -14,7 +14,7 @@ function Dashboard({ usuario, empleados, setEmpleados, proyectos, setProyectos }
   
   const esAdmin = usuario?.cargo === "administrador";
 
-  // Obtener el empleado actual y su proyecto
+  // Obtener el empleado actual y su proyecto - AHORA INCLUYE ADMINISTRADORES
   const empleadoActual = empleados.find(emp => emp.id === usuario.id);
   const proyectoEmpleado = empleadoActual?.proyecto;
 
@@ -46,6 +46,13 @@ function Dashboard({ usuario, empleados, setEmpleados, proyectos, setProyectos }
     }
   }, [view]);
 
+  // Actualizar el proyecto del formulario cuando cambie el proyecto del empleado
+  useEffect(() => {
+    if (proyectoEmpleado) {
+      setFormHoras(prev => ({ ...prev, proyecto: proyectoEmpleado }));
+    }
+  }, [proyectoEmpleado]);
+
   const cargarResumenHoras = async () => {
     setCargando(true);
     try {
@@ -71,9 +78,9 @@ function Dashboard({ usuario, empleados, setEmpleados, proyectos, setProyectos }
       return;
     }
 
-    // Verificar que el empleado tenga un proyecto asignado
+    // Verificar que el empleado (incluyendo administradores) tenga un proyecto asignado
     if (!proyectoEmpleado) {
-      alert("No tienes un proyecto asignado. Contacta al administrador.");
+      alert("No tienes un proyecto asignado. Contacta al administrador para que te asigne a un proyecto.");
       return;
     }
 
@@ -82,18 +89,20 @@ function Dashboard({ usuario, empleados, setEmpleados, proyectos, setProyectos }
 
       const resultado = await supabaseService.registrarHorasTrabajadas(
         usuario.id,
-        proyectoEmpleado, // Siempre usar el proyecto del empleado
+        proyectoEmpleado, // Siempre usar el proyecto del empleado/administrador
         formHoras.horas,
         getFechaHoy(),
         ""
       );
 
+      // Actualizar estado local de empleados
       setEmpleados(prev => prev.map(emp => 
         emp.id === usuario.id 
           ? { ...emp, horas: resultado.empleado.horas }
           : emp
       ));
 
+      // Actualizar estado local de proyectos
       setProyectos(prev => prev.map(proy => 
         proy.nombre === proyectoEmpleado
           ? { ...proy, tiempototal: resultado.proyecto.tiempototal }
@@ -102,10 +111,8 @@ function Dashboard({ usuario, empleados, setEmpleados, proyectos, setProyectos }
 
       await cargarResumenHoras();
 
-      setFormHoras({
-        proyecto: proyectoEmpleado,
-        horas: ""
-      });
+      // Limpiar formulario
+      setFormHoras(prev => ({ ...prev, horas: "" }));
 
       alert(`✅ ¡Horas registradas exitosamente!\nSe agregaron ${formHoras.horas} horas al proyecto ${proyectoEmpleado}`);
 
@@ -125,7 +132,7 @@ function Dashboard({ usuario, empleados, setEmpleados, proyectos, setProyectos }
       const salarioTotal = horas * salarioHora;
       
       return {
-        'Empleado': `${emp.nombre} ${emp.apellido}`,
+        'Empleado': `${emp.nombre} ${emp.apellido || ''}`,
         'Email': emp.email,
         'Proyecto': emp.proyecto,
         'Horas Trabajadas': horas,
